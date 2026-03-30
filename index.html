@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Humanitarian Executive Dashboard</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 20px; background-color: #f4f7f6; color: #333; }
+        .container { max-width: 1200px; margin: auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        h1 { text-align: center; color: #1a3a5a; margin-bottom: 30px; font-weight: 600; }
+        
+        /* Layout */
+        .controls { display: flex; justify-content: center; gap: 20px; margin-bottom: 30px; }
+        select { padding: 10px 15px; border-radius: 6px; border: 1px solid #cbd5e0; background: white; font-size: 14px; cursor: pointer; }
+        
+        .kpi-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 35px; }
+        .kpi-card { background: #fff; padding: 20px; border-radius: 10px; text-align: center; border: 1px solid #e2e8f0; border-top: 4px solid #3182ce; transition: transform 0.2s; }
+        .kpi-card:hover { transform: translateY(-3px); }
+        .kpi-label { font-size: 13px; color: #718096; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+        .kpi-value { font-size: 24px; font-weight: 700; color: #2d3748; }
+        
+        .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; margin-top: 10px; }
+        .chart-box { background: #fff; border: 1px solid #e2e8f0; padding: 20px; border-radius: 10px; min-height: 350px; }
+        .chart-title { font-size: 16px; font-weight: 600; margin-bottom: 20px; color: #2d3748; display: flex; align-items: center; gap: 8px; }
+        
+        /* Table */
+        .table-container { margin-top: 30px; overflow-x: auto; border-radius: 10px; border: 1px solid #e2e8f0; }
+        table { width: 100%; border-collapse: collapse; background: white; }
+        th { background-color: #edf2f7; color: #4a5568; padding: 12px 15px; text-align: left; font-size: 13px; }
+        td { padding: 12px 15px; border-bottom: 1px solid #edf2f7; font-size: 14px; }
+        tr:hover { background-color: #f7fafc; }
+
+        .axis-label { font-size: 11px; fill: #718096; }
+        .bar-target { fill: #cbd5e0; }
+        .bar-reach { fill: #3182ce; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Humanitarian Response Dashboard</h1>
+
+    <div class="controls">
+        <select id="regionFilter"><option value="all">Global (All Regions)</option></select>
+        <select id="sectorFilter"><option value="all">All Sectors</option></select>
+    </div>
+
+    <div class="kpi-container">
+        <div class="kpi-card"><div class="kpi-label">Target Population</div><div id="targetKpi" class="kpi-value">0</div></div>
+        <div class="kpi-card"><div class="kpi-label">Actual Reach</div><div id="reachedKpi" class="kpi-value">0</div></div>
+        <div class="kpi-card"><div class="kpi-label">Funding Received</div><div id="fundingKpi" class="kpi-value">$0</div></div>
+        <div class="kpi-card"><div class="kpi-label">Funding Gap</div><div id="gapKpi" class="kpi-value">0%</div></div>
+    </div>
+
+    <div class="chart-grid">
+        <div class="chart-box">
+            <div class="chart-title">📊 Population Comparison by Sector</div>
+            <div id="sectorChart"></div>
+        </div>
+        <div class="chart-box">
+            <div class="chart-title">📈 Monthly Funding Trends</div>
+            <div id="trendChart"></div>
+        </div>
+    </div>
+
+    <div class="table-container">
+        <table>
+            <thead><tr><th>Reporting Date</th><th>Region</th><th>Sector</th><th>Reach</th><th>Funding (USD)</th></tr></thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    const margin = {top: 20, right: 30, bottom: 80, left: 60};
+    const width = 540 - margin.left - margin.right;
+    const height = 300 - margin.top - margin.bottom;
+
+    d3.csv("humanitarian_response_dataset.csv").then(data => {
+        data.forEach(d => {
+            d.reach = +d.people_reached || 0;
+            d.target = +d.people_in_need || 0;
+            d.funding = +d.funding_received_usd || 0;
+            d.required = +d.funding_required_usd || 0;
+            d.date = d3.timeParse("%Y-%m-%d")(d.date);
+        });
+
+        // Setup Filters
+        const regions = ["all", ...new Set(data.map(d => d.state_region))];
+        const sectors = ["all", ...new Set(data.map(d => d.sector))];
+        d3.select("#regionFilter").selectAll("option").data(regions).enter().append("option").text(d => d).attr("value", d => d);
+        d3.select("#sectorFilter").selectAll("option").data(sectors).enter().append("option").text(d => d).attr("value", d => d);
+
+        function update() {
+            const region = d3.select("#regionFilter").property("value");
+            const sector = d3.select("#sectorFilter").property("value");
+
+            let filtered = data.filter(d => 
+                (region === "all" || d.state_region === region) && 
+                (sector === "all" || d.sector === sector)
+            );
+
+            // KPIs
+            const sumTarget = d3.sum(filtered, d => d.target);
+            const sumReach = d3.sum(filtered, d => d.reach);
+            const sumFund = d3.sum(filtered, d => d.funding);
+            const sumReq = d3.sum(filtered, d => d.required);
+            
+            d3.select("#targetKpi").text(d3.format(",")(sumTarget));
+            d3.select("#reachedKpi").text(d3.format(",")(sumReach));
+            d3.select("#fundingKpi").text("$" + d3.format(".2s")(sumFund));
+            d3.select("#gapKpi").text(sumReq > 0 ? ((sumReq - sumFund) / sumReq * 100).toFixed(1) + "%" : "0%");
+
+            // --- SECTOR GROUPED BAR CHART ---
+            d3.select("#sectorChart").selectAll("svg").remove();
+            const sectorSvg = d3.select("#sectorChart").append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom)
+                .append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+
+            const sectorSummary = d3.groups(filtered, d => d.sector).map(([key, v]) => ({
+                sector: key,
+                target: d3.sum(v, d => d.target),
+                reach: d3.sum(v, d => d.reach)
+            })).slice(0, 5); // Show top 5 sectors for clarity
+
+            const x0 = d3.scaleBand().domain(sectorSummary.map(d => d.sector)).range([0, width]).padding(0.2);
+            const x1 = d3.scaleBand().domain(['target', 'reach']).range([0, x0.bandwidth()]).padding(0.05);
+            const y = d3.scaleLinear().domain([0, d3.max(sectorSummary, d => Math.max(d.target, d.reach))]).nice().range([height, 0]);
+
+            sectorSvg.append("g").attr("transform", `translate(0,${height})`).call(d3.axisBottom(x0))
+                .selectAll("text").attr("transform", "rotate(-30)").style("text-anchor", "end");
+            sectorSvg.append("g").call(d3.axisLeft(y).tickFormat(d3.format(".2s")));
+
+            const slice = sectorSvg.selectAll(".slice").data(sectorSummary).enter().append("g")
+                .attr("transform", d => `translate(${x0(d.sector)},0)`);
+
+            slice.append("rect").attr("class", "bar-target").attr("x", x1('target')).attr("y", d => y(d.target))
+                .attr("width", x1.bandwidth()).attr("height", d => height - y(d.target));
+
+            slice.append("rect").attr("class", "bar-reach").attr("x", x1('reach')).attr("y", d => y(d.reach))
+                .attr("width", x1.bandwidth()).attr("height", d => height - y(d.reach));
+
+            // --- TREND CHART ---
+            d3.select("#trendChart").selectAll("svg").remove();
+            const trendSvg = d3.select("#trendChart").append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom)
+                .append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+
+            const trendData = d3.groups(filtered, d => d3.timeMonth(d.date))
+                .map(([k, v]) => ({ date: k, total: d3.sum(v, d => d.funding) }))
+                .sort((a,b) => a.date - b.date);
+
+            const tx = d3.scaleTime().domain(d3.extent(trendData, d => d.date)).range([0, width]);
+            const ty = d3.scaleLinear().domain([0, d3.max(trendData, d => d.total)]).nice().range([height, 0]);
+
+            trendSvg.append("g").attr("transform", `translate(0,${height})`)
+                .call(d3.axisBottom(tx).tickFormat(d3.timeFormat("%b %y")))
+                .selectAll("text").attr("transform", "rotate(-45)").style("text-anchor", "end");
+            trendSvg.append("g").call(d3.axisLeft(ty).tickFormat(d3.format(".2s")));
+
+            const line = d3.line().x(d => tx(d.date)).y(d => ty(d.total)).curve(d3.curveMonotoneX);
+            trendSvg.append("path").datum(trendData).attr("fill", "none").attr("stroke", "#3182ce").attr("stroke-width", 3).attr("d", line);
+
+            // Table
+            const tbody = d3.select("#tableBody");
+            tbody.selectAll("tr").remove();
+            filtered.slice(0, 8).forEach(d => {
+                const tr = tbody.append("tr");
+                tr.append("td").text(d3.timeFormat("%b %d, %Y")(d.date));
+                tr.append("td").text(d.state_region);
+                tr.append("td").text(d.sector);
+                tr.append("td").text(d3.format(",")(d.reach));
+                tr.append("td").text("$" + d3.format(",")(d.funding));
+            });
+        }
+
+        d3.selectAll("select").on("change", update);
+        update();
+    });
+</script>
+
+</body>
+</html>
