@@ -1,0 +1,1225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Humanitarian Response Dashboard</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            padding: 30px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #667eea;
+        }
+
+        h1 {
+            color: #667eea;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 1.1em;
+        }
+
+        /* Filters Section */
+        .filters-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .filters-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .filter-group label {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #495057;
+            font-size: 0.95em;
+        }
+
+        .filter-group select {
+            padding: 10px;
+            border: 2px solid #dee2e6;
+            border-radius: 6px;
+            font-size: 0.95em;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .filter-group select:hover {
+            border-color: #667eea;
+        }
+
+        .filter-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        /* KPI Section */
+        .kpi-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .kpi-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            border-radius: 10px;
+            color: white;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+        }
+
+        .kpi-label {
+            font-size: 0.85em;
+            opacity: 0.9;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .kpi-value {
+            font-size: 2em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .kpi-subtitle {
+            font-size: 0.8em;
+            opacity: 0.8;
+        }
+
+        /* Visualizations */
+        .viz-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .viz-container {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .viz-container.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .viz-title {
+            font-size: 1.3em;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #495057;
+            border-left: 4px solid #667eea;
+            padding-left: 12px;
+        }
+
+        /* Table Styles */
+        .table-container {
+            overflow-x: auto;
+            margin-top: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9em;
+        }
+
+        th {
+            background: #667eea;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.3s ease;
+        }
+
+        th:hover {
+            background: #5568d3;
+        }
+
+        th.sortable::after {
+            content: ' ⇅';
+            opacity: 0.5;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        /* Tooltip */
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 12px;
+            border-radius: 6px;
+            pointer-events: none;
+            font-size: 0.85em;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            max-width: 300px;
+        }
+
+        /* Chart Styles */
+        .bar {
+            transition: opacity 0.3s ease, fill 0.3s ease;
+        }
+
+        .bar:hover {
+            opacity: 0.8;
+        }
+
+        .line {
+            fill: none;
+            stroke-width: 2.5;
+        }
+
+        .axis path,
+        .axis line {
+            stroke: #999;
+        }
+
+        .axis text {
+            font-size: 11px;
+            fill: #666;
+        }
+
+        .grid line {
+            stroke: #e0e0e0;
+            stroke-opacity: 0.7;
+        }
+
+        .grid path {
+            stroke-width: 0;
+        }
+
+        /* Legend */
+        .legend-item {
+            cursor: pointer;
+            transition: opacity 0.3s ease;
+        }
+
+        .legend-item:hover {
+            opacity: 0.7;
+        }
+
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .viz-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .kpi-section {
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            }
+            
+            .filters-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🌍 Humanitarian Response Dashboard</h1>
+            <p class="subtitle">Interactive Data Analysis & Monitoring System</p>
+        </header>
+
+        <!-- Filters -->
+        <div class="filters-section">
+            <div class="filters-grid">
+                <div class="filter-group">
+                    <label for="region-filter">Region</label>
+                    <select id="region-filter">
+                        <option value="all">All Regions</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="country-filter">Country</label>
+                    <select id="country-filter">
+                        <option value="all">All Countries</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="sector-filter">Sector</label>
+                    <select id="sector-filter">
+                        <option value="all">All Sectors</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="organization-filter">Organization</label>
+                    <select id="organization-filter">
+                        <option value="all">All Organizations</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- KPIs -->
+        <div class="kpi-section" id="kpi-section"></div>
+
+        <!-- Visualizations -->
+        <div class="viz-grid">
+            <div class="viz-container">
+                <div class="viz-title">People Targeted vs Reached by Sector</div>
+                <svg id="grouped-bar-chart"></svg>
+            </div>
+
+            <div class="viz-container">
+                <div class="viz-title">Top 10 Locations by Funding Gap</div>
+                <svg id="ranking-chart"></svg>
+            </div>
+
+            <div class="viz-container">
+                <div class="viz-title">Monthly Funding Received Trend</div>
+                <svg id="time-series-chart"></svg>
+            </div>
+
+            <div class="viz-container">
+                <div class="viz-title">Distribution by Sector</div>
+                <svg id="donut-chart"></svg>
+            </div>
+        </div>
+
+        <!-- Data Table -->
+        <div class="viz-container full-width">
+            <div class="viz-title">Detailed Records (Top 15 by Funding Gap)</div>
+            <div class="table-container">
+                <table id="data-table">
+                    <thead>
+                        <tr>
+                            <th class="sortable" data-sort="date">Date</th>
+                            <th class="sortable" data-sort="country">Country</th>
+                            <th class="sortable" data-sort="township">Township</th>
+                            <th class="sortable" data-sort="sector">Sector</th>
+                            <th class="sortable" data-sort="partner">Organization</th>
+                            <th class="sortable" data-sort="people_in_need">Targeted</th>
+                            <th class="sortable" data-sort="people_reached">Reached</th>
+                            <th class="sortable" data-sort="funding_gap">Funding Gap %</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tooltip -->
+    <div class="tooltip" id="tooltip" style="display: none;"></div>
+
+    <script>
+        // Global variables
+        let rawData = [];
+        let filteredData = [];
+        
+        // Chart dimensions
+        const margin = {top: 30, right: 30, bottom: 80, left: 80};
+        const width = 500 - margin.left - margin.right;
+        const height = 400 - margin.top - margin.bottom;
+
+        // Tooltip functions
+        function showTooltip(event, html) {
+            const tooltip = d3.select('#tooltip');
+            tooltip
+                .style('display', 'block')
+                .html(html)
+                .style('left', (event.pageX + 15) + 'px')
+                .style('top', (event.pageY - 15) + 'px');
+        }
+
+        function hideTooltip() {
+            d3.select('#tooltip').style('display', 'none');
+        }
+
+        // Number formatting
+        function formatNumber(num) {
+            return num.toLocaleString();
+        }
+
+        function formatCurrency(num) {
+            return '$' + (num / 1000).toFixed(0) + 'K';
+        }
+
+        // Load and process data
+        d3.csv('humanitarian_response_dataset.csv').then(data => {
+            // Parse and clean data
+            rawData = data.map(d => ({
+                date: new Date(d.date),
+                country: d.country,
+                region: d.state_region,
+                township: d.township,
+                sector: d.sector,
+                partner: d.partner,
+                people_in_need: +d.people_in_need,
+                people_reached: +d.people_reached,
+                funding_required_usd: +d.funding_required_usd,
+                funding_received_usd: +d.funding_received_usd,
+                incidents_reported: +d.incidents_reported,
+                access_constraint: d.access_constraint,
+                severity: +d.severity,
+                urgency: d.urgency
+            }));
+
+            // Initialize filters
+            initializeFilters();
+            
+            // Initial render
+            filteredData = rawData;
+            updateDashboard();
+        });
+
+        function initializeFilters() {
+            // Populate region filter
+            const regions = [...new Set(rawData.map(d => d.region))].sort();
+            const regionSelect = d3.select('#region-filter');
+            regionSelect.selectAll('option.data-option').remove();
+            regions.forEach(region => {
+                regionSelect.append('option')
+                    .attr('class', 'data-option')
+                    .attr('value', region)
+                    .text(region);
+            });
+
+            // Populate country filter
+            const countries = [...new Set(rawData.map(d => d.country))].sort();
+            const countrySelect = d3.select('#country-filter');
+            countrySelect.selectAll('option.data-option').remove();
+            countries.forEach(country => {
+                countrySelect.append('option')
+                    .attr('class', 'data-option')
+                    .attr('value', country)
+                    .text(country);
+            });
+
+            // Populate sector filter
+            const sectors = [...new Set(rawData.map(d => d.sector))].sort();
+            const sectorSelect = d3.select('#sector-filter');
+            sectorSelect.selectAll('option.data-option').remove();
+            sectors.forEach(sector => {
+                sectorSelect.append('option')
+                    .attr('class', 'data-option')
+                    .attr('value', sector)
+                    .text(sector);
+            });
+
+            // Populate organization filter
+            const partners = [...new Set(rawData.map(d => d.partner))].sort();
+            const partnerSelect = d3.select('#organization-filter');
+            partnerSelect.selectAll('option.data-option').remove();
+            partners.forEach(partner => {
+                partnerSelect.append('option')
+                    .attr('class', 'data-option')
+                    .attr('value', partner)
+                    .text(partner);
+            });
+
+            // Add event listeners
+            d3.select('#region-filter').on('change', applyFilters);
+            d3.select('#country-filter').on('change', applyFilters);
+            d3.select('#sector-filter').on('change', applyFilters);
+            d3.select('#organization-filter').on('change', applyFilters);
+        }
+
+        function applyFilters() {
+            const regionFilter = d3.select('#region-filter').property('value');
+            const countryFilter = d3.select('#country-filter').property('value');
+            const sectorFilter = d3.select('#sector-filter').property('value');
+            const partnerFilter = d3.select('#organization-filter').property('value');
+
+            filteredData = rawData.filter(d => {
+                return (regionFilter === 'all' || d.region === regionFilter) &&
+                       (countryFilter === 'all' || d.country === countryFilter) &&
+                       (sectorFilter === 'all' || d.sector === sectorFilter) &&
+                       (partnerFilter === 'all' || d.partner === partnerFilter);
+            });
+
+            updateDashboard();
+        }
+
+        function updateDashboard() {
+            updateKPIs();
+            drawGroupedBarChart();
+            drawTimeSeriesChart();
+            drawRankingChart();
+            drawDonutChart();
+            updateTable();
+        }
+
+        function updateKPIs() {
+            const totalTargeted = d3.sum(filteredData, d => d.people_in_need);
+            const totalReached = d3.sum(filteredData, d => d.people_reached);
+            const totalFundingRequired = d3.sum(filteredData, d => d.funding_required_usd);
+            const totalFundingReceived = d3.sum(filteredData, d => d.funding_received_usd);
+            const fundingGap = ((totalFundingRequired - totalFundingReceived) / totalFundingRequired * 100);
+            const avgAccessConstraints = d3.mean(filteredData, d => d.incidents_reported);
+
+            const kpis = [
+                {
+                    label: 'People Targeted',
+                    value: formatNumber(totalTargeted),
+                    subtitle: filteredData.length + ' projects'
+                },
+                {
+                    label: 'People Reached',
+                    value: formatNumber(totalReached),
+                    subtitle: ((totalReached/totalTargeted)*100).toFixed(1) + '% coverage'
+                },
+                {
+                    label: 'Funding Required',
+                    value: formatCurrency(totalFundingRequired),
+                    subtitle: 'Total budget'
+                },
+                {
+                    label: 'Funding Received',
+                    value: formatCurrency(totalFundingReceived),
+                    subtitle: ((totalFundingReceived/totalFundingRequired)*100).toFixed(1) + '% of required'
+                },
+                {
+                    label: 'Funding Gap',
+                    value: fundingGap.toFixed(1) + '%',
+                    subtitle: formatCurrency(totalFundingRequired - totalFundingReceived) + ' shortage'
+                },
+                {
+                    label: 'Avg Incidents',
+                    value: avgAccessConstraints.toFixed(1),
+                    subtitle: 'Per project'
+                }
+            ];
+
+            const kpiSection = d3.select('#kpi-section');
+            kpiSection.selectAll('.kpi-card').remove();
+
+            kpiSection.selectAll('.kpi-card')
+                .data(kpis)
+                .enter()
+                .append('div')
+                .attr('class', 'kpi-card')
+                .html(d => `
+                    <div class="kpi-label">${d.label}</div>
+                    <div class="kpi-value">${d.value}</div>
+                    <div class="kpi-subtitle">${d.subtitle}</div>
+                `);
+        }
+
+        function drawGroupedBarChart() {
+            // Clear previous chart
+            d3.select('#grouped-bar-chart').selectAll('*').remove();
+
+            // Aggregate data by sector
+            const sectorData = d3.rollup(
+                filteredData,
+                v => ({
+                    targeted: d3.sum(v, d => d.people_in_need),
+                    reached: d3.sum(v, d => d.people_reached)
+                }),
+                d => d.sector
+            );
+
+            const data = Array.from(sectorData, ([sector, values]) => ({
+                sector,
+                targeted: values.targeted,
+                reached: values.reached
+            })).sort((a, b) => b.targeted - a.targeted).slice(0, 8);
+
+            // Set up SVG
+            const svg = d3.select('#grouped-bar-chart')
+                .attr('width', width + margin.left + margin.right)
+                .attr('height', height + margin.top + margin.bottom)
+                .append('g')
+                .attr('transform', `translate(${margin.left},${margin.top})`);
+
+            // Scales
+            const x0 = d3.scaleBand()
+                .domain(data.map(d => d.sector))
+                .rangeRound([0, width])
+                .paddingInner(0.1);
+
+            const x1 = d3.scaleBand()
+                .domain(['targeted', 'reached'])
+                .rangeRound([0, x0.bandwidth()])
+                .padding(0.05);
+
+            const y = d3.scaleLinear()
+                .domain([0, d3.max(data, d => Math.max(d.targeted, d.reached))])
+                .nice()
+                .rangeRound([height, 0]);
+
+            const color = d3.scaleOrdinal()
+                .domain(['targeted', 'reached'])
+                .range(['#667eea', '#f093fb']);
+
+            // Add grid
+            svg.append('g')
+                .attr('class', 'grid')
+                .call(d3.axisLeft(y)
+                    .tickSize(-width)
+                    .tickFormat('')
+                );
+
+            // Add bars
+            const sector = svg.selectAll('.sector')
+                .data(data)
+                .enter().append('g')
+                .attr('transform', d => `translate(${x0(d.sector)},0)`);
+
+            sector.selectAll('rect')
+                .data(d => ['targeted', 'reached'].map(key => ({key, value: d[key], sector: d.sector})))
+                .enter().append('rect')
+                .attr('class', 'bar')
+                .attr('x', d => x1(d.key))
+                .attr('y', height)
+                .attr('width', x1.bandwidth())
+                .attr('height', 0)
+                .attr('fill', d => color(d.key))
+                .on('mouseover', function(event, d) {
+                    d3.select(this).style('opacity', 0.7);
+                    showTooltip(event, `
+                        <strong>${d.sector}</strong><br/>
+                        ${d.key === 'targeted' ? 'People Targeted' : 'People Reached'}:<br/>
+                        <strong>${formatNumber(d.value)}</strong>
+                    `);
+                })
+                .on('mouseout', function() {
+                    d3.select(this).style('opacity', 1);
+                    hideTooltip();
+                })
+                .transition()
+                .duration(800)
+                .attr('y', d => y(d.value))
+                .attr('height', d => height - y(d.value));
+
+            // Add axes
+            svg.append('g')
+                .attr('class', 'axis')
+                .attr('transform', `translate(0,${height})`)
+                .call(d3.axisBottom(x0))
+                .selectAll('text')
+                .attr('transform', 'rotate(-45)')
+                .style('text-anchor', 'end');
+
+            svg.append('g')
+                .attr('class', 'axis')
+                .call(d3.axisLeft(y).tickFormat(d => formatNumber(d)));
+
+            // Add Y-axis label
+            svg.append('text')
+                .attr('transform', 'rotate(-90)')
+                .attr('y', -60)
+                .attr('x', -height / 2)
+                .attr('dy', '1em')
+                .style('text-anchor', 'middle')
+                .style('font-size', '12px')
+                .style('font-weight', '600')
+                .style('fill', '#495057')
+                .text('Number of People');
+
+            // Add X-axis label
+            svg.append('text')
+                .attr('x', width / 2)
+                .attr('y', height + 60)
+                .style('text-anchor', 'middle')
+                .style('font-size', '12px')
+                .style('font-weight', '600')
+                .style('fill', '#495057')
+                .text('Sector');
+
+            // Add legend
+            const legend = svg.append('g')
+                .attr('transform', `translate(${width - 150}, 0)`);
+
+            ['targeted', 'reached'].forEach((key, i) => {
+                const legendItem = legend.append('g')
+                    .attr('class', 'legend-item')
+                    .attr('transform', `translate(0, ${i * 20})`);
+
+                legendItem.append('rect')
+                    .attr('width', 15)
+                    .attr('height', 15)
+                    .attr('fill', color(key));
+
+                legendItem.append('text')
+                    .attr('x', 20)
+                    .attr('y', 12)
+                    .style('font-size', '12px')
+                    .text(key.charAt(0).toUpperCase() + key.slice(1));
+            });
+        }
+
+        function drawTimeSeriesChart() {
+            // Clear previous chart
+            d3.select('#time-series-chart').selectAll('*').remove();
+
+            // Aggregate data by month
+            const monthlyData = d3.rollup(
+                filteredData,
+                v => d3.sum(v, d => d.funding_received_usd),
+                d => d3.timeMonth(d.date)
+            );
+
+            const data = Array.from(monthlyData, ([date, funding]) => ({date, funding}))
+                .sort((a, b) => a.date - b.date);
+
+            if (data.length === 0) return;
+
+            // Set up SVG
+            const svg = d3.select('#time-series-chart')
+                .attr('width', width + margin.left + margin.right)
+                .attr('height', height + margin.top + margin.bottom)
+                .append('g')
+                .attr('transform', `translate(${margin.left},${margin.top})`);
+
+            // Scales
+            const x = d3.scaleTime()
+                .domain(d3.extent(data, d => d.date))
+                .range([0, width]);
+
+            const y = d3.scaleLinear()
+                .domain([0, d3.max(data, d => d.funding)])
+                .nice()
+                .range([height, 0]);
+
+            // Add grid
+            svg.append('g')
+                .attr('class', 'grid')
+                .call(d3.axisLeft(y)
+                    .tickSize(-width)
+                    .tickFormat('')
+                );
+
+            // Add line
+            const line = d3.line()
+                .x(d => x(d.date))
+                .y(d => y(d.funding))
+                .curve(d3.curveMonotoneX);
+
+            const path = svg.append('path')
+                .datum(data)
+                .attr('class', 'line')
+                .attr('fill', 'none')
+                .attr('stroke', '#667eea')
+                .attr('stroke-width', 3)
+                .attr('d', line);
+
+            // Animate line
+            const totalLength = path.node().getTotalLength();
+            path
+                .attr('stroke-dasharray', totalLength + ' ' + totalLength)
+                .attr('stroke-dashoffset', totalLength)
+                .transition()
+                .duration(1500)
+                .attr('stroke-dashoffset', 0);
+
+            // Add dots
+            svg.selectAll('.dot')
+                .data(data)
+                .enter().append('circle')
+                .attr('class', 'dot')
+                .attr('cx', d => x(d.date))
+                .attr('cy', d => y(d.funding))
+                .attr('r', 0)
+                .attr('fill', '#764ba2')
+                .attr('stroke', 'white')
+                .attr('stroke-width', 2)
+                .on('mouseover', function(event, d) {
+                    d3.select(this)
+                        .transition()
+                        .duration(200)
+                        .attr('r', 8);
+                    showTooltip(event, `
+                        <strong>${d3.timeFormat('%B %Y')(d.date)}</strong><br/>
+                        Funding Received:<br/>
+                        <strong>${formatCurrency(d.funding)}</strong>
+                    `);
+                })
+                .on('mouseout', function() {
+                    d3.select(this)
+                        .transition()
+                        .duration(200)
+                        .attr('r', 5);
+                    hideTooltip();
+                })
+                .transition()
+                .delay((d, i) => i * 50)
+                .duration(500)
+                .attr('r', 5);
+
+            // Add axes
+            svg.append('g')
+                .attr('class', 'axis')
+                .attr('transform', `translate(0,${height})`)
+                .call(d3.axisBottom(x).tickFormat(d3.timeFormat('%b %Y')))
+                .selectAll('text')
+                .attr('transform', 'rotate(-45)')
+                .style('text-anchor', 'end');
+
+            svg.append('g')
+                .attr('class', 'axis')
+                .call(d3.axisLeft(y).tickFormat(d => formatCurrency(d)));
+
+            // Add Y-axis label
+            svg.append('text')
+                .attr('transform', 'rotate(-90)')
+                .attr('y', -60)
+                .attr('x', -height / 2)
+                .attr('dy', '1em')
+                .style('text-anchor', 'middle')
+                .style('font-size', '12px')
+                .style('font-weight', '600')
+                .style('fill', '#495057')
+                .text('Funding Amount (USD)');
+
+            // Add X-axis label
+            svg.append('text')
+                .attr('x', width / 2)
+                .attr('y', height + 60)
+                .style('text-anchor', 'middle')
+                .style('font-size', '12px')
+                .style('font-weight', '600')
+                .style('fill', '#495057')
+                .text('Month');
+        }
+
+        function drawRankingChart() {
+            // Clear previous chart
+            d3.select('#ranking-chart').selectAll('*').remove();
+
+            // Calculate funding gap by township
+            const townshipData = d3.rollup(
+                filteredData,
+                v => ({
+                    required: d3.sum(v, d => d.funding_required_usd),
+                    received: d3.sum(v, d => d.funding_received_usd)
+                }),
+                d => d.township
+            );
+
+            const data = Array.from(townshipData, ([township, values]) => ({
+                township,
+                gap: ((values.required - values.received) / values.required * 100)
+            }))
+            .filter(d => !isNaN(d.gap))
+            .sort((a, b) => b.gap - a.gap)
+            .slice(0, 10);
+
+            // Use a larger left margin so township names are not clipped
+            const rankingMargin = {top: margin.top, right: margin.right, bottom: margin.bottom, left: 160};
+            const rankingWidth = 500 - rankingMargin.left - rankingMargin.right;
+
+            // Set up SVG
+            const svg = d3.select('#ranking-chart')
+                .attr('width', rankingWidth + rankingMargin.left + rankingMargin.right)
+                .attr('height', height + rankingMargin.top + rankingMargin.bottom)
+                .append('g')
+                .attr('transform', `translate(${rankingMargin.left},${rankingMargin.top})`);
+
+            // Scales
+            const x = d3.scaleLinear()
+                .domain([0, d3.max(data, d => d.gap)])
+                .nice()
+                .range([0, rankingWidth]);
+
+            const y = d3.scaleBand()
+                .domain(data.map(d => d.township))
+                .range([0, height])
+                .padding(0.1);
+
+            const color = d3.scaleSequential(d3.interpolateReds)
+                .domain([0, d3.max(data, d => d.gap)]);
+
+            // Add bars
+            svg.selectAll('.bar')
+                .data(data)
+                .enter().append('rect')
+                .attr('class', 'bar')
+                .attr('x', 0)
+                .attr('y', d => y(d.township))
+                .attr('width', 0)
+                .attr('height', y.bandwidth())
+                .attr('fill', d => color(d.gap))
+                .on('mouseover', function(event, d) {
+                    d3.select(this).style('opacity', 0.7);
+                    showTooltip(event, `
+                        <strong>${d.township}</strong><br/>
+                        Funding Gap: <strong>${d.gap.toFixed(1)}%</strong>
+                    `);
+                })
+                .on('mouseout', function() {
+                    d3.select(this).style('opacity', 1);
+                    hideTooltip();
+                })
+                .transition()
+                .duration(800)
+                .delay((d, i) => i * 50)
+                .attr('width', d => x(d.gap));
+
+            // Add value labels
+            svg.selectAll('.label')
+                .data(data)
+                .enter().append('text')
+                .attr('class', 'label')
+                .attr('x', d => x(d.gap) + 5)
+                .attr('y', d => y(d.township) + y.bandwidth() / 2)
+                .attr('dy', '.35em')
+                .style('font-size', '11px')
+                .style('fill', '#333')
+                .style('opacity', 0)
+                .text(d => d.gap.toFixed(1) + '%')
+                .transition()
+                .duration(800)
+                .delay((d, i) => i * 50)
+                .style('opacity', 1);
+
+            // Add axes
+            svg.append('g')
+                .attr('class', 'axis')
+                .attr('transform', `translate(0,${height})`)
+                .call(d3.axisBottom(x).tickFormat(d => d + '%'));
+
+            svg.append('g')
+                .attr('class', 'axis')
+                .call(d3.axisLeft(y));
+
+            // Add X-axis label
+            svg.append('text')
+                .attr('x', rankingWidth / 2)
+                .attr('y', height + 40)
+                .style('text-anchor', 'middle')
+                .style('font-size', '12px')
+                .style('font-weight', '600')
+                .style('fill', '#495057')
+                .text('Funding Gap (%)');
+
+            // Add Y-axis label
+            svg.append('text')
+                .attr('transform', 'rotate(-90)')
+                .attr('y', -rankingMargin.left + 60)
+                .attr('x', -height / 2)
+                .attr('dy', '1em')
+                .style('text-anchor', 'middle')
+                .style('font-size', '12px')
+                .style('font-weight', '600')
+                .style('fill', '#495057')
+                .text('Location (Township)');
+        }
+
+        function drawDonutChart() {
+            // Clear previous chart
+            d3.select('#donut-chart').selectAll('*').remove();
+
+            // Aggregate data by sector
+            const sectorData = d3.rollup(
+                filteredData,
+                v => v.length,
+                d => d.sector
+            );
+
+            const data = Array.from(sectorData, ([sector, count]) => ({sector, count}))
+                .sort((a, b) => b.count - a.count);
+
+            // Layout: donut in top portion, legend grid below
+            const chartWidth = 560;
+            const donutAreaHeight = 320;
+            const legendAreaHeight = 110;
+            const chartHeight = donutAreaHeight + legendAreaHeight;
+            const cx = chartWidth / 2;
+            const cy = donutAreaHeight / 2;
+            const radius = 118;
+            const innerRadius = radius * 0.54;
+
+            // Vivid, distinct colors — one per sector
+            const palette = [
+                '#4361ee','#f72585','#4cc9f0','#f8961e',
+                '#43aa8b','#e63946','#7b2d8b','#2dc653',
+                '#ff6b6b','#ffd166','#06d6a0','#118ab2'
+            ];
+
+            // Set up SVG
+            const svg = d3.select('#donut-chart')
+                .attr('width', chartWidth)
+                .attr('height', chartHeight)
+                .attr('viewBox', `0 0 ${chartWidth} ${chartHeight}`)
+                .style('font-family', "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif");
+
+            // Color scale
+            const color = d3.scaleOrdinal()
+                .domain(data.map(d => d.sector))
+                .range(palette);
+
+            // Pie layout
+            const pie = d3.pie()
+                .value(d => d.count)
+                .sort(null)
+                .padAngle(0.022);
+
+            // Arc generators
+            const arc = d3.arc()
+                .innerRadius(innerRadius)
+                .outerRadius(radius)
+                .cornerRadius(5);
+
+            const arcHover = d3.arc()
+                .innerRadius(innerRadius)
+                .outerRadius(radius + 12)
+                .cornerRadius(5);
+
+            // Drop shadow filter
+            const defs = svg.append('defs');
+            const filter = defs.append('filter').attr('id', 'donut-shadow');
+            filter.append('feDropShadow')
+                .attr('dx', 0).attr('dy', 3)
+                .attr('stdDeviation', 5)
+                .attr('flood-color', 'rgba(0,0,0,0.15)');
+
+            // Donut group centered in top area
+            const g = svg.append('g')
+                .attr('transform', `translate(${cx},${cy})`);
+
+            // Draw slices
+            const slices = g.selectAll('.arc')
+                .data(pie(data))
+                .enter().append('g')
+                .attr('class', 'arc');
+
+            slices.append('path')
+                .attr('d', arc)
+                .attr('fill', d => color(d.data.sector))
+                .attr('stroke', 'white')
+                .attr('stroke-width', 2.5)
+                .style('filter', 'url(#donut-shadow)')
+                .style('opacity', 0.93)
+                .style('cursor', 'pointer')
+                .on('mouseover', function(event, d) {
+                    d3.select(this)
+                        .transition().duration(180)
+                        .attr('d', arcHover)
+                        .style('opacity', 1);
+                    const total = d3.sum(data, dd => dd.count);
+                    const pct = (d.data.count / total * 100).toFixed(1);
+                    showTooltip(event, `
+                        <strong>${d.data.sector}</strong><br/>
+                        Projects: <strong>${d.data.count}</strong><br/>
+                        Share: <strong>${pct}%</strong>
+                    `);
+                })
+                .on('mouseout', function() {
+                    d3.select(this)
+                        .transition().duration(180)
+                        .attr('d', arc)
+                        .style('opacity', 0.93);
+                    hideTooltip();
+                })
+                .transition()
+                .duration(900)
+                .delay((d, i) => i * 60)
+                .attrTween('d', function(d) {
+                    const interp = d3.interpolate({startAngle: d.startAngle, endAngle: d.startAngle}, d);
+                    return t => arc(interp(t));
+                });
+
+            // Center text — total projects
+            g.append('text')
+                .attr('text-anchor', 'middle')
+                .attr('dy', '-0.35em')
+                .style('font-size', '26px')
+                .style('font-weight', '800')
+                .style('fill', '#667eea')
+                .text(filteredData.length);
+
+            g.append('text')
+                .attr('text-anchor', 'middle')
+                .attr('dy', '1.1em')
+                .style('font-size', '12px')
+                .style('font-weight', '500')
+                .style('fill', '#888')
+                .text('Total Projects');
+
+            // ── Bottom legend: 3-column grid below the donut ──
+            const cols = 3;
+            const colWidth = chartWidth / cols;
+            const swatchSize = 11;
+            const rowHeight = 22;
+            const legendTopPad = 14;
+
+            const legendG = svg.append('g')
+                .attr('transform', `translate(0, ${donutAreaHeight + legendTopPad})`);
+
+            // Subtle separator line
+            legendG.append('line')
+                .attr('x1', 20).attr('x2', chartWidth - 20)
+                .attr('y1', -8).attr('y2', -8)
+                .attr('stroke', '#e0e0e0')
+                .attr('stroke-width', 1);
+
+            data.forEach((d, i) => {
+                const col = i % cols;
+                const row = Math.floor(i / cols);
+                const cellX = col * colWidth;
+                const cellY = row * rowHeight;
+                // Center each item within its column cell
+                const itemWidth = swatchSize + 6 + 80; // swatch + gap + text estimate
+                const lx = cellX + (colWidth - itemWidth) / 2;
+                const ly = cellY;
+
+                legendG.append('rect')
+                    .attr('x', lx)
+                    .attr('y', ly)
+                    .attr('width', swatchSize)
+                    .attr('height', swatchSize)
+                    .attr('rx', 3)
+                    .attr('ry', 3)
+                    .attr('fill', color(d.sector));
+
+                legendG.append('text')
+                    .attr('x', lx + swatchSize + 6)
+                    .attr('y', ly + swatchSize - 1)
+                    .style('font-size', '11.5px')
+                    .style('font-weight', '600')
+                    .style('fill', '#444')
+                    .text(d.sector);
+            });
+        }
+
+        function updateTable() {
+            // Calculate funding gap for each record
+            const tableData = filteredData.map(d => ({
+                ...d,
+                funding_gap: ((d.funding_required_usd - d.funding_received_usd) / d.funding_required_usd * 100)
+            }))
+            .sort((a, b) => b.funding_gap - a.funding_gap)
+            .slice(0, 15);
+
+            const tbody = d3.select('#data-table tbody');
+            tbody.selectAll('tr').remove();
+
+            const rows = tbody.selectAll('tr')
+                .data(tableData)
+                .enter()
+                .append('tr');
+
+            rows.html(d => `
+                <td>${d3.timeFormat('%Y-%m-%d')(d.date)}</td>
+                <td>${d.country}</td>
+                <td>${d.township}</td>
+                <td>${d.sector}</td>
+                <td>${d.partner}</td>
+                <td>${formatNumber(d.people_in_need)}</td>
+                <td>${formatNumber(d.people_reached)}</td>
+                <td>${d.funding_gap.toFixed(1)}%</td>
+            `);
+
+            // Add sorting functionality
+            d3.selectAll('th.sortable').on('click', function() {
+                const sortKey = d3.select(this).attr('data-sort');
+                sortTable(sortKey);
+            });
+        }
+
+        let sortDirection = {};
+
+        function sortTable(key) {
+            sortDirection[key] = !sortDirection[key];
+            
+            const tableData = filteredData.map(d => ({
+                ...d,
+                funding_gap: ((d.funding_required_usd - d.funding_received_usd) / d.funding_required_usd * 100)
+            }))
+            .sort((a, b) => {
+                let aVal = a[key];
+                let bVal = b[key];
+                
+                if (key === 'date') {
+                    aVal = a.date.getTime();
+                    bVal = b.date.getTime();
+                }
+                
+                if (sortDirection[key]) {
+                    return aVal > bVal ? 1 : -1;
+                } else {
+                    return aVal < bVal ? 1 : -1;
+                }
+            })
+            .slice(0, 15);
+
+            const tbody = d3.select('#data-table tbody');
+            tbody.selectAll('tr').remove();
+
+            const rows = tbody.selectAll('tr')
+                .data(tableData)
+                .enter()
+                .append('tr');
+
+            rows.html(d => `
+                <td>${d3.timeFormat('%Y-%m-%d')(d.date)}</td>
+                <td>${d.country}</td>
+                <td>${d.township}</td>
+                <td>${d.sector}</td>
+                <td>${d.partner}</td>
+                <td>${formatNumber(d.people_in_need)}</td>
+                <td>${formatNumber(d.people_reached)}</td>
+                <td>${d.funding_gap.toFixed(1)}%</td>
+            `);
+        }
+    </script>
+</body>
+</html>
